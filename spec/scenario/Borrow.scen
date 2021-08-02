@@ -1,0 +1,116 @@
+
+Test "Borrow some BAT and enters BAT if BAT not entered"
+    NewComptroller price:1.0
+    NewFToken ZRX fZRX
+    NewFToken BAT fBAT
+    Give fBAT 10e18 BAT -- Faucet some bat to borrow
+    Support fZRX collateralFactor:0.5
+    Support fBAT collateralFactor:0.5
+    Prep Geoff Some ZRX fZRX
+    Mint Geoff 100e18 fZRX
+    EnterMarkets Geoff fZRX
+    Borrow Geoff 1e18 fBAT
+    Assert Equal (fToken fBAT BorrowBalance Geoff) (Exactly 1e18)
+    Assert Equal (Bep20 BAT TokenBalance Geoff) (Exactly 1e18)
+    Assert Equal (Bep20 BAT TokenBalance fBAT) (Exactly 9e18)
+    Assert Equal (Comptroller MembershipLength Geoff) (Exactly 2)
+    Assert True (Comptroller CheckMembership Geoff fZRX)
+    Assert True (Comptroller CheckMembership Geoff fBAT)
+
+Test "Borrow some BAT fails, but user still entered"
+    NewComptroller price:1.0
+    NewFToken ZRX fZRX
+    NewFToken BAT fBAT
+    Support fZRX collateralFactor:0.5
+    Support fBAT collateralFactor:0.5
+    Prep Geoff Some ZRX fZRX
+    Mint Geoff 100e18 fZRX
+    EnterMarkets Geoff fZRX
+    Invariant Static (Bep20 BAT TokenBalance Geoff)
+    Invariant Static (Bep20 BAT TokenBalance fBAT)
+    AllowFailures
+    Borrow Geoff 1e18 fBAT
+    Assert Failure TOKEN_INSUFFICIENT_CASH BORROW_CASH_NOT_AVAILABLE
+    Assert Equal (Comptroller MembershipLength Geoff) (Exactly 2)
+    Assert True (Comptroller CheckMembership Geoff fZRX)
+    Assert True (Comptroller CheckMembership Geoff fBAT)
+
+Test "Borrow some BAT fails when no BAT available"
+    NewComptroller price:1.0
+    NewFToken ZRX fZRX
+    NewFToken BAT fBAT
+    Support fZRX collateralFactor:0.5
+    Support fBAT collateralFactor:0.5
+    Prep Geoff Some ZRX fZRX
+    Mint Geoff 100e18 fZRX
+    EnterMarkets Geoff fZRX fBAT
+    Invariant Static (FToken fZRX ExchangeRateStored)
+    AllowFailures
+    Borrow Geoff 1e18 fBAT
+    Assert Failure TOKEN_INSUFFICIENT_CASH BORROW_CASH_NOT_AVAILABLE
+
+Test "Borrow some BAT fails when already entered max assets"
+    NewComptroller price:1.0 maxAssets:1
+    NewFToken ZRX fZRX
+    NewFToken BAT fBAT
+    Give fBAT 10e18 BAT -- Faucet some bat to borrow
+    Support fZRX collateralFactor:0.5
+    Support fBAT collateralFactor:0.5
+    Prep Geoff Some ZRX fZRX
+    Mint Geoff 100e18 fZRX
+    EnterMarkets Geoff fZRX
+    AllowFailures
+    Borrow Geoff 1e18 fBAT
+    Assert Failure COMPTROLLER_REJECTION BORROW_COMPTROLLER_REJECTION TOO_MANY_ASSETS
+
+Test "Borrow fails if market not listed"
+    NewComptroller price:1.0
+    NewFToken ZRX fZRX
+    NewFToken BAT fBAT
+    Give fBAT 10e18 BAT -- Faucet some bat to borrow
+    Support fZRX collateralFactor:0.5
+    Prep Geoff Some ZRX fZRX
+    Mint Geoff 100e18 fZRX
+    EnterMarkets Geoff fZRX
+    AllowFailures
+    Borrow Geoff 1e18 fBAT
+    Assert Failure COMPTROLLER_REJECTION BORROW_COMPTROLLER_REJECTION MARKET_NOT_LISTED
+
+Test "Borrow some BAT from Excess Cash"
+    Invariant Success
+    NewComptroller price:1.0
+    NewFToken ZRX fZRX
+    NewFToken BAT fBAT
+    Give fBAT 10e18 BAT -- Faucet some bat to borrow
+    Support fZRX collateralFactor:0.5
+    Support fBAT collateralFactor:0.5
+    Prep Geoff Some ZRX fZRX
+    Mint Geoff 100e18 fZRX
+    EnterMarkets Geoff fZRX fBAT
+    Borrow Geoff 1e18 fBAT
+    Assert Equal (fToken fBAT BorrowBalance Geoff) (Exactly 1e18)
+    Assert Equal (Bep20 BAT TokenBalance Geoff) (Exactly 1e18)
+    Assert Equal (Bep20 BAT TokenBalance fBAT) (Exactly 9e18)
+
+Test "Borrow some BAT reverts if borrow is paused"
+    NewComptroller price:1.0
+    NewFToken ZRX fZRX
+    NewFToken BAT fBAT
+    Give fBAT 10e18 BAT -- Faucet some bat to borrow
+    Support fZRX collateralFactor:0.5
+    Support fBAT collateralFactor:0.5
+    Prep Geoff Some ZRX fZRX
+    Mint Geoff 100e18 fZRX
+    EnterMarkets Geoff fZRX fBAT
+    Comptroller SetProtocolPaused True
+    AllowFailures
+    Borrow Geoff 1e18 fBAT
+    Assert Revert "revert protocol is paused"
+    Assert Equal (fToken fBAT BorrowBalance Geoff) 0
+    Assert Equal (Bep20 BAT TokenBalance Geoff) 0
+    Assert Equal (Bep20 BAT TokenBalance fBAT) (Exactly 10e18)
+    Comptroller SetProtocolPaused False
+    Borrow Geoff 1e18 fBAT
+    Assert Equal (fToken fBAT BorrowBalance Geoff) (Exactly 1e18)
+    Assert Equal (Bep20 BAT TokenBalance Geoff) (Exactly 1e18)
+    Assert Equal (Bep20 BAT TokenBalance fBAT) (Exactly 9e18)

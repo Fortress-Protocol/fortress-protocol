@@ -1,0 +1,222 @@
+-- NewComptroller, but with markets listed so that we can make them markets in constructor
+Macro FlywheelComptroller price=1.0 borrowRate=0.000005 fortressInitAmount=5000000e18
+    Unitroller Deploy
+    PriceOracle Deploy Fixed price
+    PriceOracleProxy Deploy Admin (PriceOracle Address) (Address Zero) (Address Zero) (Address Zero) (Address Zero) (Address Zero)
+    --g1
+    ComptrollerImpl Deploy ScenarioG1 ComptrollerScenG1
+    Unitroller SetPendingImpl ComptrollerScenG1
+    ComptrollerImpl ComptrollerScenG1 BecomeG1
+    --list some tokens
+    Comptroller SetPriceOracle (PriceOracleProxy Address)
+    Comptroller SetMaxAssets 20
+    Comptroller SetCloseFactor 0.5
+    Comptroller LiquidationIncentive 1.1
+    Comptroller SetFortressRate 1e18
+    NewFToken ZRX fZRX
+    NewFToken BAT fBAT
+    Support fZRX collateralFactor:0.5
+    Support fBAT collateralFactor:0.5
+    Comptroller AddFortressMarkets (fZRX fBAT)
+    Bep20 Deploy Standard FTS "FTS Token" 18
+    Give (Address Comptroller) fortressInitAmount FTS
+    Comptroller Send "setFTSAddress(address)" (Address FTS)
+    Bep20 Deploy Standard FAI "FAI Token" 18
+    Give (Address Comptroller) fortressInitAmount FAI
+    Comptroller Send "setFAIAddress(address)" (Address FAI)
+
+Macro InitSpeeds
+    Prep Geoff 100e18 ZRX fZRX
+    Mint Geoff 50e18 fZRX--tokenbalance = 50e18 / 2e9 = 2.5e10
+    Prep Coburn Some BAT fBAT
+    Mint Coburn 6e18 fBAT--tokenbalance = 6e18 / 2e9 = 3e9
+    EnterMarkets Coburn fBAT
+    Borrow Coburn 1e18 fZRX
+    Comptroller RefreshFortressSpeeds
+
+Test "Accrue FTS during a mint"
+    FlywheelComptroller
+    InitSpeeds
+    FastForward 300000 Blocks
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Mint Geoff 1e18 fZRX
+    -- new index = initVal + deltaBlocks * supplySpeed * 1e36 / totalSupply
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 2.5e10 = 1.2000000000001e49
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Assert Equal (Comptroller FortressSupplyState fZRX "index") 1.2000000000001e49
+    Assert Equal (Comptroller FortressSupplyState fZRX "block") 300000
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 300000e18
+    Assert Equal (Comptroller FortressSupplierIndex fZRX Geoff) 1.2000000000001e49
+
+Test "Accrue FTS during a borrow"
+    FlywheelComptroller
+    InitSpeeds
+    Comptroller FastForward 300000 Blocks
+    Assert Equal (Comptroller FortressAccrued Coburn) 0
+    Borrow Coburn 0.1e18 fZRX
+    -- new index = initVal + deltaBlocks * borrowSpeed * 1e36 / totalBorrows
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 1e18 =  3.00001e41
+    Assert Equal (Comptroller FortressAccrued Coburn) 0
+    Assert Equal (Comptroller FortressBorrowState fZRX "index") 3.00001e41
+    Assert Equal (Comptroller FortressBorrowState fZRX "block") 300000
+    Assert Equal (Bep20 FTS TokenBalance Coburn) 300000e18
+    Assert Equal (Comptroller FortressBorrowerIndex fZRX Coburn) 3.00001e41
+
+Test "Accrue FTS during a redeem"
+    FlywheelComptroller
+    InitSpeeds
+    FastForward 300000 Blocks
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Redeem Geoff 1e9 fZRX
+    -- new index = initVal + deltaBlocks * supplySpeed * 1e36 / totalSupply
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 2.5e10 = 1.2000000000001e49
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Assert Equal (Comptroller FortressSupplyState fZRX "index") 1.2000000000001e49
+    Assert Equal (Comptroller FortressSupplyState fZRX "block") 300000
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 300000e18
+    Assert Equal (Comptroller FortressSupplierIndex fZRX Geoff) 1.2000000000001e49
+
+Test "Accrue FTS during a repayBorrow"
+    FlywheelComptroller
+    InitSpeeds
+    FastForward 300000 Blocks
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Prep Coburn 0.5e18 ZRX fZRX
+    RepayBorrow Coburn 0.5e18 fZRX
+    -- new index = initVal + deltaBlocks * borrowSpeed * 1e36 / totalBorrows
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 1e18 =  3.00001e41
+    Assert Equal (Comptroller FortressAccrued Coburn) 0
+    Assert Equal (Comptroller FortressBorrowState fZRX "index") 3.00001e41
+    Assert Equal (Comptroller FortressBorrowState fZRX "block") 300000
+    Assert Equal (Bep20 FTS TokenBalance Coburn) 300000e18
+    Assert Equal (Comptroller FortressBorrowerIndex fZRX Coburn) 3.00001e41
+
+Test "Accrue FTS during a repayBorrowBehalf of 0"
+    FlywheelComptroller
+    InitSpeeds
+    FastForward 300000 Blocks
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    -- confirm we can init all flywheel accounts for free
+    RepayBorrowBehalf Jared Coburn 0 fZRX
+    -- new index = initVal + deltaBlocks * borrowSpeed * 1e36 / totalBorrows
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 1e18 = 3.00001e41
+    Assert Equal (Comptroller FortressAccrued Coburn) 0
+    Assert Equal (Comptroller FortressBorrowState fZRX "index") 3.00001e41
+    Assert Equal (Comptroller FortressBorrowState fZRX "block") 300000
+    Assert Equal (Bep20 FTS TokenBalance Coburn) 300000e18
+    Assert Equal (Comptroller FortressBorrowerIndex fZRX Coburn) 3.00001e41
+
+Test "Accrue FTS during a liquidation"
+    FlywheelComptroller
+    InitSpeeds
+    Assert Equal (Comptroller FortressSpeed fZRX) 1e18
+    Assert Equal (Comptroller FortressSpeed fBAT) 0
+    --coburn zrx borrow, bat supply. geoff zrx supply
+    FastForward 600000 Blocks--1e18 borrow * (1 + 600000 * 0.000005) = 3.5e18 borrow > 6e18 collateral * 0.5 CF
+    Prep Geoff Some ZRX fZRX
+    From Geoff (FToken fZRX Liquidate Coburn fBAT 0.5e18)
+    -- zrx borrow index is updated and fts distributed
+    -- * new index = initVal + deltaBlocks * borrowSpeed * 1e36 / totalBorrows
+    -- * new index = 1e36 + 600000 * 1e18 * 1e36 / 1e18 = 6.00001E41
+    Assert Equal (Comptroller FortressBorrowState fZRX "index") 6.00001e41
+    Assert Equal (Comptroller FortressBorrowState fZRX "block") 600000
+    -- zrx supply index isnt updated and fts isnt distributed for zrx supply
+    Assert Equal (Comptroller FortressSupplyState fZRX "index") 1e36
+    Assert Equal (Comptroller FortressSupplyState fZRX "block") 0
+    Assert Equal (Comptroller FortressSupplierIndex fZRX Geoff) 1e36--no change, minted in init
+    -- bat supply/borrow index is not updated, since there is no fts speed
+    Assert Equal (Comptroller FortressSupplyState fBAT "index") 1e36
+    Assert Equal (Comptroller FortressSupplyState fBAT "block") 600000
+    -- neither is borrow state. block is 0 because update fn is never even called
+    Assert Equal (Comptroller FortressBorrowState fBAT "index") 1e36
+    Assert Equal (Comptroller FortressBorrowState fBAT "block") 0
+    --
+    Assert Equal (Comptroller FortressSupplierIndex fBAT Coburn) 1e36
+    Assert Equal (Comptroller FortressBorrowerIndex fZRX Coburn) 6.00001e41
+    Assert Equal (Bep20 FTS TokenBalance Coburn) 600000e18
+    Assert Equal (Comptroller FortressAccrued Coburn) 0
+    --
+    Assert Equal (Comptroller FortressSupplierIndex fBAT Geoff) 1e36
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 0
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+
+Test "Accrue FTS during a transfer"
+    FlywheelComptroller
+    InitSpeeds
+    FastForward 300000 Blocks
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 0
+    Assert Equal (Comptroller FortressSupplierIndex fZRX Geoff) 1e36
+    Transfer Geoff Jared 2.5e10 fZRX
+    -- new index = initVal + deltaBlocks * supplySpeed * 1e36 / totalSupply
+    -- new index = 1e36 + 300000 * 1e18 * 1e36 / 2.5e10 = 1.2000000000001e49
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 300000e18
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Assert Equal (Comptroller FortressSupplyState fZRX "index") 1.2000000000001e49
+    Assert Equal (Comptroller FortressSupplyState fZRX "block") 300000
+    Assert Equal (Comptroller FortressSupplierIndex fZRX Geoff) 1.2000000000001e49
+    --
+    Assert Equal (Comptroller FortressAccrued Jared) 0
+    Assert Equal (Comptroller FortressSupplyState fZRX "index") 1.2000000000001e49
+    Assert Equal (Comptroller FortressSupplyState fZRX "block") 300000
+    Assert Equal (Comptroller FortressSupplierIndex fZRX Jared) 1.2000000000001e49
+
+Test "Accrues correctly when market is added, deactivated, and activated again"
+    FlywheelComptroller
+    InitSpeeds
+    NewFToken DAI fDAI
+    --
+    Support fDAI collateralFactor:0.5
+    Comptroller AddFortressMarkets fDAI
+    Assert Equal (Comptroller GetFortressMarkets) [(Address fZRX) (Address fBAT) (Address fDAI)]
+    Prep Jared Some DAI fDAI
+    Mint Jared 6e18 fDAI
+    EnterMarkets Geoff fZRX
+    Borrow Geoff 0.5e18 fDAI
+    Borrow Coburn 0.5e18 fDAI
+    Comptroller RefreshFortressSpeeds
+    Assert Equal (Comptroller FortressSpeed fZRX) 0.5e18
+    Assert Equal (Comptroller FortressSpeed fDAI) 0.5e18
+    --
+    FastForward 100 Blocks
+    Comptroller DropFortressMarket fDAI
+    Comptroller ClaimFortress Geoff
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 75e18--half of fdai, all of zrx(.25e18 + .5e18) * 100
+    Assert Equal (Comptroller GetFortressMarkets) [(Address fZRX) (Address fBAT)]
+    Assert Equal (Comptroller FortressSpeed fZRX) 1e18
+    Assert Equal (Comptroller FortressSpeed fDAI) 0
+    --
+    FastForward 100 Blocks
+    Comptroller ClaimFortress Geoff
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 175e18-- += 1e18 * 100
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    --
+    Comptroller AddFortressMarkets fDAI
+    FastForward 100 Blocks
+    Comptroller ClaimFortress Geoff
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 250e18--half of fdai, all of zrx. += (.25 + .5) * 100
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+
+Test "TransferComp handles running out of FTS in Comptroller correctly"
+    FlywheelComptroller price:1.0 borrowRate:0.000005 fortressInitAmount:1e18
+    InitSpeeds
+    FastForward 2 Blocks
+    Comptroller ClaimFortress Geoff
+    Assert Equal (Comptroller FortressAccrued Geoff) 2e18
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 0
+    Give (Address Comptroller) 1e18 FTS
+    Comptroller ClaimFortress Geoff
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 2e18
+
+Test "Changing FTS rate continues to distribute at the correct speed"
+    FlywheelComptroller
+    InitSpeeds
+    --
+    Assert Equal (Comptroller FortressSpeed fZRX) 1e18
+    FastForward 10 Blocks
+    Comptroller SetFortressRate 2e18
+    Assert Equal (Comptroller FortressSpeed fZRX) 2e18
+    FastForward 10 Blocks
+    Comptroller ClaimFortress Geoff
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 30e18

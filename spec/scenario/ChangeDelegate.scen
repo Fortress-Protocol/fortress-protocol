@@ -1,0 +1,11 @@
+-- Delegate upgrade tests
+
+Test "Change the delegate"
+    NewComptroller
+    NewFToken DEL vDEL
+    Support vDEL collateralFactor:0.5
+    Prep Jared Some DEL vDEL
+    Mint Jared 100e18 vDEL
+    FTokenDelegate Deploy FBep20Delegate fBep20Delegate2
+    FToken vDEL SetImplementation (FTokenDelegate fBep20Delegate2 Address) True "0x0"
+    Redeem Jared 50e9 vDEL

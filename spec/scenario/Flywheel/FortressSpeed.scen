@@ -1,0 +1,93 @@
+-- Tests for the grants and math patch
+
+Macro FlywheelComptroller price=1.0 borrowRate=0.000005 fortressInitAmount=5000000e18
+    Unitroller Deploy
+    PriceOracle Deploy Fixed price
+    PriceOracleProxy Deploy Admin (PriceOracle Address) (Address Zero) (Address Zero) (Address Zero) (Address Zero) (Address Zero)
+    ----g1
+    ComptrollerImpl Deploy ScenarioG1 ComptrollerScenG1
+    Unitroller SetPendingImpl ComptrollerScenG1
+    ComptrollerImpl ComptrollerScenG1 BecomeG1
+    --list some tokens
+    Comptroller SetPriceOracle (PriceOracleProxy Address)
+    Comptroller SetMaxAssets 20
+    Comptroller SetCloseFactor 0.5
+    Comptroller LiquidationIncentive 1.1
+    Comptroller SetFortressRate 1e18
+    NewFToken ZRX fZRX
+    NewFToken BAT fBAT
+    Support fZRX collateralFactor:0.5
+    Support fBAT collateralFactor:0.5
+    Comptroller AddFortressMarkets (fZRX fBAT)
+    Bep20 Deploy Standard FTS "FTS Token" 18
+    Give (Address Comptroller) fortressInitAmount FTS
+    Comptroller Send "setFTSAddress(address)" (Address FTS)
+    Bep20 Deploy Standard FAI "FAI Token" 18
+    Give (Address Comptroller) fortressInitAmount FAI
+    Comptroller Send "setFAIAddress(address)" (Address FAI)
+
+Macro GrantsComptroller
+    FlywheelComptroller
+    -- g2
+    ComptrollerImpl Deploy ScenarioG2 ComptrollerScen
+    Unitroller SetPendingImpl ComptrollerScen
+    ComptrollerImpl ComptrollerScen BecomeG2
+    -- current
+    ComptrollerImpl Deploy Scenario ComptrollerScen
+    Unitroller SetPendingImpl ComptrollerScen
+    ComptrollerImpl ComptrollerScen Become
+
+Macro InitSpeeds
+    Prep Geoff 100e18 ZRX fZRX
+    Mint Geoff 50e18 fZRX--tokenbalance = 50e18 / 2e9 = 2.5e10
+    Prep Coburn Some BAT fBAT
+    Mint Coburn 6e18 fBAT--tokenbalance = 6e18 / 2e9 = 3e9
+    EnterMarkets Coburn fBAT
+    Borrow Coburn 1e18 fZRX
+    Comptroller SetFortressSpeed fZRX 1
+    Comptroller SetFortressSpeed fBAT 1
+    Comptroller RefreshFortressSpeeds
+    Comptroller Send "setFTSAddress(address)" (Address FTS)
+
+Test "FTS speed can be set per market"
+    GrantsComptroller
+    InitSpeeds
+    -- Baseline fts amounts
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 0
+    -- Fortress speed can be set
+    Comptroller SetFortressSpeed fZRX 2
+    FastForward 1000 Blocks
+    Comptroller ClaimFortress Geoff
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 2000
+    -- Fortress speed can be changed
+    Comptroller SetFortressSpeed fZRX 4
+    FastForward 1000 Blocks
+    Comptroller ClaimFortress Geoff
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 6000
+    -- Fortress speed can be removed
+    Comptroller SetFortressSpeed fZRX 0
+    FastForward 1000 Blocks
+    Comptroller ClaimFortress Geoff
+    Assert Equal (Comptroller FortressAccrued Geoff) 0
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 6000
+
+Test "Set fts rate is removed"
+    GrantsComptroller
+    InitSpeeds
+    AllowFailures
+    Comptroller SetFortressRate 5
+
+Test "FTS is not claimed automatically"
+    GrantsComptroller
+    InitSpeeds
+    Comptroller SetFortressSpeed fZRX 2
+    FastForward 100000 Blocks
+    -- Check fts is not claimed automatically
+    Mint Geoff 50e18 fZRX
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 0
+    -- Confirm there was fts to claim
+    Comptroller ClaimFortress Geoff
+    Assert Equal (Bep20 FTS TokenBalance Geoff) 200000

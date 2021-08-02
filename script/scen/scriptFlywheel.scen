@@ -1,0 +1,58 @@
+#!/usr/bin/env yarn run repl -s
+-- Deploys basic Comptroller
+
+Unitroller Deploy
+PriceOracle Deploy Fixed 1.0
+PriceOracleProxy Deploy Admin (PriceOracle Address) (Address Zero) (Address Zero) (Address Zero) (Address Zero) (Address Zero)
+ComptrollerImpl Deploy Scenario ComptrollerScen
+Unitroller SetPendingImpl ComptrollerScen
+ComptrollerImpl ComptrollerScen Become
+Comptroller SetPriceOracle (PriceOracleProxy Address)
+Comptroller SetMaxAssets 20
+Comptroller SetCloseFactor 0.5
+Comptroller LiquidationIncentive 1.1
+Comptroller SetFortressRate 1e18
+NewFToken ZRX fZRX
+NewFToken BAT fBAT
+Support fZRX collateralFactor:0.5
+Support fBAT collateralFactor:0.5
+
+Prep Geoff 100e18 ZRX fZRX
+Mint Geoff 50e18 fZRX--tokenbalance = 50e18 / 2e9 = 2.5e10
+
+Prep Fourth Some BAT fBAT
+Mint Fourth 6e18 fBAT
+EnterMarkets Fourth fBAT
+Borrow Fourth 1e18 fZRX
+
+Prep Fifth Some BAT fBAT
+Mint Fifth 6e18 fBAT
+EnterMarkets Fifth fBAT
+Borrow Fifth 1e18 fZRX
+
+Prep Sixth Some BAT fBAT
+Mint Sixth 6e18 fBAT
+EnterMarkets Sixth fBAT
+Borrow Sixth 1e18 fZRX
+
+Prep Seventh Some BAT fBAT
+Mint Seventh 6e18 fBAT
+EnterMarkets Seventh fBAT
+Borrow Seventh 1e18 fZRX
+
+Comptroller AddFortressMarkets (fZRX fBAT)
+Bep20 Deploy Standard FTS "FTS Token" 18
+Give (Address Comptroller) 5000000e18 FTS
+Comptroller Send "setFTSAddress(address)" (Address FTS)
+Bep20 Deploy Standard FAI "FAI Token" 18
+Give (Address Comptroller) 5000000e18 FAI
+Comptroller Send "setFAIAddress(address)" (Address FAI)
+
+Comptroller RefreshFortressSpeeds
+
+FastForward 300000 Blocks
+Read (Comptroller Address)
+Read (Address Fourth)
+Read (Address Fifth)
+Read (Address Sixth)
+Read (Address Seventh)

@@ -1,0 +1,265 @@
+-- These are included in each scenario
+
+Macro Successfully
+    Invariant Success
+
+Macro AllowFailures
+    ClearInvariants Success
+
+Macro PricedComptroller closeFactor=0.1 maxAssets=20
+    Unitroller Deploy
+    PriceOracle Deploy Simple
+    ComptrollerImpl Deploy Scenario ScenComptroller
+    Unitroller SetPendingImpl ScenComptroller
+    ComptrollerImpl ScenComptroller Become
+    PriceOracleProxy Deploy Admin (PriceOracle Address) (Address Zero) (Address Zero) (Address Zero) (Address Zero) (Address Zero) -- if listing fBnb use ListedBNBToken to replace proxy
+    Comptroller SetPriceOracle (PriceOracleProxy Address)
+    Comptroller SetCloseFactor closeFactor
+    Comptroller SetMaxAssets maxAssets
+
+Macro NewComptroller price=1.0 closeFactor=0.1 maxAssets=20
+    Unitroller Deploy
+    PriceOracle Deploy Fixed price
+    --g1
+    ComptrollerImpl Deploy ScenarioG1 ComptrollerG1
+    Unitroller SetPendingImpl ComptrollerG1
+    ComptrollerImpl ComptrollerG1 BecomeG1
+    --g2
+    ComptrollerImpl Deploy ScenarioG2 ComptrollerG2
+    Unitroller SetPendingImpl ComptrollerG2
+    ComptrollerImpl ComptrollerG2 BecomeG2
+    --g3
+    ComptrollerImpl Deploy ScenarioG3 ComptrollerG3
+    Unitroller SetPendingImpl ComptrollerG3
+    ComptrollerImpl ComptrollerG3 BecomeG3
+    --g4
+    ComptrollerImpl Deploy ScenarioG4 ComptrollerG4
+    Unitroller SetPendingImpl ComptrollerG4
+    ComptrollerImpl ComptrollerG4 BecomeG4
+    --current
+    ComptrollerImpl Deploy Scenario ScenComptroller
+    Unitroller SetPendingImpl ScenComptroller
+    ComptrollerImpl ScenComptroller Become
+    PriceOracleProxy Deploy Admin (PriceOracle Address) (Address Zero) (Address Zero) (Address Zero) (Address Zero) (Address Zero) -- if listing fBnb use ListedBNBToken to replace proxy
+    Comptroller SetPriceOracle (PriceOracleProxy Address)
+    Comptroller SetMaxAssets maxAssets
+    Comptroller SetCloseFactor closeFactor
+
+Macro NewFeeComptroller price=1.0 closeFactor=0.1 maxAssets=20
+    Unitroller Deploy
+    PriceOracle Deploy Fixed price
+    ComptrollerImpl Deploy Scenario ScenComptroller
+    Unitroller SetPendingImpl ScenComptroller
+    ComptrollerImpl ScenComptroller Become
+    PriceOracleProxy Deploy Admin (PriceOracle Address) (Address Zero) (Address Zero) (Address Zero) (Address Zero) (Address Zero) -- if listing fBnb use ListedBNBToken to replace proxy
+    Comptroller SetPriceOracle (PriceOracleProxy Address)
+    Comptroller SetMaxAssets maxAssets
+    Comptroller SetCloseFactor closeFactor
+    Comptroller SetTreasuryData Guardian Jared
+
+Macro NewFToken bep20 fToken borrowRate=0.000005 initialExchangeRate=2e9 decimals=8 tokenType=Standard delegatorType=FBep20DelegatorScenario fTokenType=FBep20DelegateScenario admin=Admin becomeImplementationData="0x0"
+    Bep20 Deploy tokenType bep20 bep20
+    InterestRateModel Deploy Fixed StdInterest borrowRate -- Note: interest rate model probably shouldn't be global
+    FTokenDelegate Deploy fTokenType fBep20Delegate
+    FToken Deploy delegatorType fToken fToken (Bep20 bep20 Address) (Comptroller Address) (InterestRateModel StdInterest Address) initialExchangeRate decimals admin (FTokenDelegate fBep20Delegate Address) becomeImplementationData
+
+-- Same as NewFToken but does not deploy an BEP20. Used for special BEP20s that are initialized differently
+Macro NewFTokenBringBEP20 bep20 fToken borrowRate=0.000005 initialExchangeRate=2e9 decimals=8 delegatorType=FBep20DelegatorScenario fTokenType=FBep20DelegateScenario admin=Admin becomeImplementationData="0x0"
+    InterestRateModel Deploy Fixed StdInterest borrowRate -- Note: interest rate model probably shouldn't be global
+    FTokenDelegate Deploy fTokenType fBep20Delegate
+    FToken Deploy delegatorType fToken fToken (Bep20 bep20 Address) (Comptroller Address) (InterestRateModel StdInterest Address) initialExchangeRate decimals admin (FTokenDelegate fBep20Delegate Address) becomeImplementationData
+
+Macro NewFTokenImmutable bep20 fToken borrowRate=0.000005 initialExchangeRate=2e9 decimals=8 tokenType=Standard fTokenType=Scenario admin=Admin
+    Bep20 Deploy tokenType bep20 bep20
+    InterestRateModel Deploy Fixed StdInterest borrowRate -- Note: interest rate model probably shouldn't be global
+    FToken Deploy fTokenType fToken fToken (Bep20 bep20 Address) (Comptroller Address) (InterestRateModel StdInterest Address) initialExchangeRate decimals admin
+
+Macro NewBNBToken fToken borrowRate=0.000005 initialExchangeRate=2e9 decimals=8 admin=Admin
+    InterestRateModel Deploy Fixed StdInterest borrowRate -- Note: interest rate model probably shouldn't be global
+    FToken Deploy FBNBScenario fToken fToken (Comptroller Address) (InterestRateModel StdInterest Address) initialExchangeRate decimals admin
+
+Macro ListedFToken bep20 fToken borrowRate=0.000005 initialExchangeRate=2e9 decimals=8 tokenType=Standard delegatorType=FBep20DelegatorScenario fTokenType=FBep20DelegateScenario admin=Admin
+    NewFToken bep20 fToken borrowRate initialExchangeRate decimals tokenType delegatorType fTokenType admin
+    Comptroller SupportMarket fToken
+
+Macro ListedFTokenImmutable bep20 fToken borrowRate=0.000005 initialExchangeRate=2e9 decimals=8 tokenType=Standard fTokenType=Scenario admin=Admin
+    NewFTokenImmutable bep20 fToken borrowRate initialExchangeRate decimals tokenType fTokenType admin
+    Comptroller SupportMarket fToken
+
+Macro ListedBNBToken fToken borrowRate=0.000005 initialExchangeRate=2e9 decimals=8 admin=Admin
+    NewBNBToken fToken borrowRate initialExchangeRate decimals admin
+    Comptroller SupportMarket fToken
+    PriceOracleProxy Deploy Admin (PriceOracle Address) (Address fBNB) (Address Zero) (Address Zero) (Address Zero) (Address Zero)
+    Comptroller SetPriceOracle (PriceOracleProxy Address)
+
+Macro ListedBNBTokenMinted fToken borrowRate=0.000005 initialExchangeRate=2e9 decimals=8 admin=Admin
+    NewBNBToken fToken borrowRate initialExchangeRate decimals admin
+    Comptroller SupportMarket fToken
+    CallMintBnb Root 1e18 fToken
+
+Macro SetPriceCF fToken price collateralFactor
+    PriceOracle SetPrice fToken price
+    Comptroller SetCollateralFactor fToken collateralFactor
+
+Macro Give user amount bep20
+    Bep20 bep20 Faucet user amount
+
+Macro Donate token amount
+    (Trx Value amount (FToken token Donate))
+
+Macro Prep user amount bep20 token allowanceAmount=Nothing
+    Bep20 bep20 Faucet user amount
+    From user (Bep20 bep20 Approve token (Default allowanceAmount amount))
+
+Macro Allow user token
+    From user (Bep20 (FToken token Underlying) Approve token UInt256Max)
+
+Macro AccrueInterest token
+    FToken token AccrueInterest
+
+Macro Mint user amount token
+    From user (FToken token Mint amount)
+
+Macro SendMintBnb user amount token
+    From user (Trx GasPrice 0 (Trx Value amount (Send token amount)))
+
+Macro CallMintBnb user amount token
+    From user (Trx GasPrice 0 (Trx Value amount (FToken token Mint)))
+
+Macro Redeem user amount token
+    From user (FToken token Redeem amount)
+
+Macro RedeemBnb user amount token
+    Trx GasPrice 0 (From user (FToken token Redeem amount))
+
+Macro RedeemUnderlying user amount token
+    From user (FToken token RedeemUnderlying amount)
+
+Macro RedeemUnderlyingBnb user amount token
+    Trx GasPrice 0 (From user (FToken token RedeemUnderlying amount))
+
+Macro BorrowBnb user amount token
+    Trx GasPrice 0 (From user (FToken token Borrow amount))
+
+Macro Borrow user amount token
+    From user (FToken token Borrow amount)
+
+Macro RepayBorrow user amount token
+    From user (FToken token RepayBorrow amount)
+
+Macro RepayBorrowBnb user amount token
+    From user (Trx GasPrice 0 (Trx Value amount (FToken token RepayBorrow)))
+
+Macro RepayBorrowBnbMax user amount token
+    From user (Trx GasPrice 0 (Trx Value amount (Maximillion RepayBehalf user)))
+
+Macro RepayBorrowBehalf user behalf amount token
+    From user (FToken token RepayBorrowBehalf behalf amount)
+
+Macro RepayBorrowBnbBehalf user behalf amount token
+    From user (Trx GasPrice 0 (Trx Value amount (FToken token RepayBorrowBehalf behalf)))
+
+Macro Liquidate liquidator _ borrower amount token _ collateral
+    From liquidator (FToken token Liquidate borrower collateral amount)
+
+Macro LiquidateBnbColl liquidator _ borrower amount token _ collateral
+    From liquidator (Trx GasPrice 0 (FToken token Liquidate borrower collateral amount))
+
+Macro LiquidateBnbBorrow liquidator _ borrower amount token _ collateral
+    From liquidator (Trx GasPrice 0 (Trx Value amount (FToken token Liquidate borrower collateral)))
+
+Macro Seize amount token caller liquidator borrower
+    From caller (FToken token Seize liquidator borrower amount)
+
+Macro EvilSeize token amount treasure seizer seizee
+    FToken token EvilSeize treasure seizer seizee amount
+
+Macro Support fToken collateralFactor=0.5
+    Comptroller SupportMarket fToken
+    Comptroller SetCollateralFactor fToken collateralFactor
+
+Macro SetCollateralFactor fToken collateralFactor=0.5
+    Comptroller SetCollateralFactor fToken collateralFactor
+
+Macro AddReserves amount token user=Root
+    From user (FToken token AddReserves amount)
+
+Macro ReduceReserves amount token
+    FToken token ReduceReserves amount
+
+Macro TransferReserves amount token
+    From Guardian (FToken token TransferReserves amount)
+
+Macro FastForward n blocks
+    Comptroller FastForward n blocks
+
+Macro EnterMarkets user ...markets
+    From user (Comptroller EnterMarkets markets)
+
+Macro ExitMarket user market
+    From user (Comptroller ExitMarket market)
+
+Macro Transfer from to amount token
+    From from (Bep20 token Transfer to amount)
+
+Macro Cash fToken
+    Read Bep20 (FToken fToken Underlying) TokenBalance fToken
+
+Macro QuickMint amount fToken from=Me
+    Give from amount (FToken fToken Underlying)
+    Allow from fToken
+    From from (FToken fToken Mint amount)
+
+Macro QuickBorrow amount fToken ...collateral
+    From Me (Comptroller EnterMarkets collateral)
+    From Me (Comptroller EnterMarkets (fToken))
+    From Me (FToken fToken Borrow amount)
+
+-- Macro for performing a borrow with the sole
+-- purpose of adding interest to the bep20 market
+Macro BorrowAndRepayWithInterest bep20 fToken amount interestAmount interestRate blocks reserveRate=0
+    -- TODO: Make invariant success for these?
+    -- TODO: Named args as macros
+    InterestRateModel Deploy Fixed Std interestRate
+    FToken fToken SetInterestRateModel (InterestRateModel Std Address)
+    FToken fToken SetReserveFactor reserveRate
+    ListedFToken COLLAT cCOLLAT
+    Comptroller SetCollateralFactor cCOLLAT 0.9
+    Prep Torrey 1e30 COLLAT cCOLLAT
+    Mint Torrey 1e30 cCOLLAT
+    EnterMarkets Torrey cCOLLAT fToken
+    Assert True (Comptroller CheckMembership Torrey cCOLLAT)
+    Assert True (Comptroller CheckMembership Torrey fToken)
+    Borrow Torrey amount fToken
+    -- Cool, we've borrowed, now let's accrue interest then repay all
+    FastForward blocks Blocks
+    -- RepayBorrow Torrey (FToken BorrowBalance Torrey) fToken
+    From Torrey (Bep20 bep20 Approve fToken amount)
+    RepayBorrow Torrey amount fToken
+    From Torrey (Bep20 bep20 Approve fToken interestAmount)
+    Give Torrey interestAmount bep20
+    RepayBorrow Torrey interestAmount fToken
+    Assert Equal (FToken fToken BorrowBalance Torrey) Zero
+
+-- Macro for performing a borrow with the sole
+-- purpose of adding interest to the bnb market
+Macro BorrowAndRepayBnbWithInterest fBnb amount interestAmount interestRate blocks reserveRate=0
+    -- TODO: Make invariant success for these?
+    -- TODO: Named args as macros
+    InterestRateModel Deploy Fixed Std interestRate
+    FToken fBnb SetInterestRateModel (InterestRateModel Std Address)
+    FToken fBnb SetReserveFactor reserveRate
+    ListedFToken COLLAT cCOLLAT
+    Comptroller SetCollateralFactor cCOLLAT 0.9
+    Prep Torrey 1e30 COLLAT cCOLLAT
+    Mint Torrey 1e30 cCOLLAT
+    EnterMarkets Torrey cCOLLAT fBnb
+    Assert True (Comptroller CheckMembership Torrey cCOLLAT)
+    Assert True (Comptroller CheckMembership Torrey fBnb)
+    Borrow Torrey amount fBnb
+    -- Cool, we've borrowed, now let's accrue interest then repay all
+    FastForward blocks Blocks
+    -- RepayBorrow Torrey (FToken BorrowBalance Torrey) fBnb
+    RepayBorrowBnb Torrey amount fBnb
+    RepayBorrowBnb Torrey interestAmount fBnb
+    Assert Equal (FToken fBnb BorrowBalance Torrey) Zero

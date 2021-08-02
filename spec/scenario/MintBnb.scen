@@ -1,0 +1,66 @@
+-- Mint Tests
+
+GasTest "Send Mint 1 fBNB"
+    NewComptroller
+    ListedBNBTokenMinted fBNB initialExchangeRate:0.005e9
+    Expect Changes (BNBBalance Geoff) -0.005e18
+    Expect Changes (FToken fBNB UnderlyingBalance Geoff) +0.005e18
+    SendMintBnb Geoff 0.005e18 fBNB
+    Assert Equal (Bep20 fBNB TokenBalance Geoff) 10e8
+    Assert LastGas LessThan 1.2e5
+
+GasTest "Call Mint 1 fBNB"
+    NewComptroller
+    ListedBNBTokenMinted fBNB initialExchangeRate:0.005e9
+    Expect Changes (BNBBalance Geoff) -0.005e18
+    Expect Changes (FToken fBNB UnderlyingBalance Geoff) +0.005e18
+    CallMintBnb Geoff 0.005e18 fBNB
+    Assert Equal (Bep20 fBNB TokenBalance Geoff) 10e8
+    Assert LastGas LessThan 1.2e5
+
+Test "Mint with insufficient bnb balance"
+    NewComptroller
+    ListedBNBTokenMinted fBNB initialExchangeRate:0.005e9
+    AllowFailures
+    Invariant Remains (FToken fBNB UnderlyingBalance Geoff) 0e18
+    Invariant Remains (Bep20 fBNB TokenBalance Geoff) 0e8
+    Invariant Static (BNBBalance Geoff)
+    CallMintBnb Geoff 1e30 fBNB
+    Assert Error "sender doesn't have enough funds to send tx. The upfront cost is"
+
+Test "Mint two Bnb after minting two Bnb, and then I mint two more"
+    NewComptroller
+    ListedBNBToken fBNB initialExchangeRate:0.005e9
+    Expect Changes (BNBBalance Geoff) -0.002e18
+    CallMintBnb Geoff 0.002e18 fBNB
+    Assert Equal (Bep20 fBNB TokenBalance Geoff) 4e8
+    Assert Equal (Bep20 fBNB TotalSupply) 4e8
+    Expect Changes (BNBBalance Geoff) -0.002e18
+    SendMintBnb Geoff 0.002e18 fBNB
+    Assert Equal (Bep20 fBNB TokenBalance Geoff) 8e8
+    Assert Equal (Bep20 fBNB TotalSupply) 8e8
+    Expect Changes (BNBBalance Geoff) -0.002e18
+    CallMintBnb Geoff 0.002e18 fBNB
+    Assert Equal (Bep20 fBNB TokenBalance Geoff) 12e8
+    Assert Equal (Bep20 fBNB TotalSupply) 12e8
+
+Test "Two users Mint"
+    NewComptroller
+    ListedBNBToken fBNB initialExchangeRate:0.005e9
+    CallMintBnb Geoff 0.002e18 fBNB
+    Assert Equal (Bep20 fBNB TokenBalance Geoff) 4e8
+    Assert Equal (Bep20 fBNB TotalSupply) 4e8
+    CallMintBnb Torrey 0.004e18 fBNB
+    Assert Equal (Bep20 fBNB TokenBalance Geoff) 4e8
+    Assert Equal (Bep20 fBNB TokenBalance Torrey) 8e8
+    Assert Equal (Bep20 fBNB TotalSupply) 12e8
+
+Test "Mint accrues no interest without borrows"
+    NewComptroller
+    ListedBNBToken fBNB initialExchangeRate:0.005e9
+    CallMintBnb Geoff 0.002e18 fBNB
+    Assert Equal (Bep20 fBNB TokenBalance Geoff) 4e8
+    Assert Equal (Bep20 fBNB TotalSupply) 4e8
+    FastForward 1000 Blocks
+    Assert Equal (Bep20 fBNB TokenBalance Geoff) 4e8
+    Assert Equal (Bep20 fBNB TotalSupply) 4e8

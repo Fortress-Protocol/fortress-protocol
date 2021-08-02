@@ -1,0 +1,50 @@
+
+Test "Fail to seize calling directly"
+    NewComptroller
+    ListedFToken ZRX fZRX initialExchangeRate:1e9
+    ListedFToken BAT fBAT initialExchangeRate:1e9
+    Prep Geoff Some ZRX fZRX
+    Mint Geoff 50e18 fZRX
+    Invariant Remains (Bep20 fZRX TokenBalance Geoff) 50e9
+    AllowFailures
+    Seize 1e9 fZRX caller:Geoff liquidator:Geoff borrower:Torrey
+    -- The caller must be from another fToken market, thus this fails
+    Assert Failure COMPTROLLER_REJECTION LIQUIDATE_SEIZE_COMPTROLLER_REJECTION MARKET_NOT_LISTED
+
+Test "Seize tokens with a paused WBTC fToken-- like normal"
+    NewComptroller
+    ListedFToken ZRX fZRX initialExchangeRate:1e9
+    ListedFToken WBTC fWBTC initialExchangeRate:0.1 tokenType:WBTC
+    Prep Geoff Some ZRX fZRX
+    Mint Geoff 50e18 fZRX
+    Bep20 WBTC Pause
+    Invariant Remains (Bep20 fZRX TokenBalance Geoff) 50e9
+    AllowFailures
+    Seize 1e9 fWBTC caller:Geoff liquidator:Geoff borrower:Torrey
+    -- The caller must be from another fToken market, thus this fails
+    Assert Failure COMPTROLLER_REJECTION LIQUIDATE_SEIZE_COMPTROLLER_REJECTION MARKET_NOT_LISTED
+
+Test "Not able to seize tokens with a malicious unlisted fToken"
+    NewComptroller
+    ListedFToken ZRX fZRX initialExchangeRate:1e9
+    NewFTokenImmutable EVL vEVL initialExchangeRate:1e9 fTokenType:FEvil
+    Prep Geoff Some ZRX fZRX
+    Mint Geoff 50e18 fZRX
+    Invariant Remains (Bep20 fZRX TokenBalance Geoff) 50e9
+    Invariant Static (Bep20 fZRX TokenBalance Geoff)
+    Invariant Static (Bep20 fZRX TokenBalance Torrey)
+    AllowFailures
+    EvilSeize vEVL 1e9 fZRX seizer:Geoff seizee:Torrey
+    -- The caller must be from another fToken market, thus this fails
+    Assert Failure COMPTROLLER_REJECTION LIQUIDATE_SEIZE_COMPTROLLER_REJECTION MARKET_NOT_LISTED
+
+Test "Able to seize tokens with a malicious listed fToken"
+    NewComptroller
+    ListedFToken ZRX fZRX initialExchangeRate:1e9
+    ListedFTokenImmutable EVL vEVL initialExchangeRate:1e9 fTokenType:FEvil
+    Prep Geoff Some ZRX fZRX
+    Mint Geoff 50e18 fZRX
+    Assert Equal (Bep20 fZRX TokenBalance Geoff) 50e9
+    Expect Changes (Bep20 fZRX TokenBalance Geoff) -1e9
+    Expect Changes (Bep20 fZRX TokenBalance Torrey) +1e9
+    EvilSeize vEVL 1e9 fZRX seizer:Torrey seizee:Geoff
